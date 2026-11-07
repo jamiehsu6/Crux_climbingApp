@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style>
+<script>
+/* Demo build: start fresh from onboarding on every page load. */
+try{Object.keys(localStorage).filter(function(k){return k.indexOf('crux.')===0}).forEach(function(k){localStorage.removeItem(k)})}catch(e){}
+</script>
 </head>
 <body>
 <title>CRUX</title>
@@ -998,13 +1002,13 @@ function mergeCands(local,ai){const key=x=>x.routeId?'r:'+x.routeId:'n:'+x.ext.n
 async function runRecognition(){recog={state:'loading',result:null,error:null};go('results',{},{replace:cur().name==='results'});
   try{let res;
     if(scan.sampleRoute)res=await DemoMatcher.identify({sampleRoute:scan.sampleRoute,near:scan.near});
-    else{const local=localCandidates();let ai=null,err=null;const s=await ClaudeMatcher.get();
+    else{const local=localCandidates();let ai=null,err=null;const cs=await claudeStatus();const s=cs.sample;
       if(s&&scan.blob){try{ai=await ClaudeMatcher.identify({blob:scan.blob,near:scan.near,place:(scan.place||'').trim().slice(0,120),nameHint:(scan.nameHint||'').trim().slice(0,80)},s)}catch(e){err=e}}
       const perm=['not_granted','sampling_disabled','images_unavailable','capability_disabled','not_declared'];
       if(err&&!local.length&&!perm.includes(err.code))throw err;
       const cands=mergeCands(local,ai?ai.candidates:[]);
       let note=ai?ai.note:'';
-      if(!ai&&!cands.length)note=err&&err.code==='not_granted'?'Claude wasn\'t allowed for this page, so the photo couldn\'t be analyzed. Allow it from the artifact\'s Permissions menu, or add the location and climb name.':!s?'Photo analysis needs Claude, which isn\'t available in this view. Add the location and climb name, or search below.':'Add where the climb is and its name to find it, or search below.';
+      if(!ai&&!cands.length)note=err&&CLAUDE_WHY[err.code]?CLAUDE_WHY[err.code]+' ('+err.code+')':!s?(CLAUDE_WHY[cs.reason]||CLAUDE_WHY.unavailable)+' ('+cs.reason+') Add the location and climb name, or search below.':'Add where the climb is and its name to find it, or search below.';
       res={status:cands.length?(cands[0].confidence>=.8?'ok':'uncertain'):'none',source:ai?(local.length?'Claude and your details':'Claude vision'):'your details',note,candidates:cands}}
     recog={state:'done',result:res,error:null}}catch(e){recog={state:'error',result:null,error:(e&&e.code==='rate_limited'?'You\'ve hit a usage limit for now. Wait a bit, then try again.':e&&e.code==='image_rejected'?'Claude couldn\'t open this image. Try a different photo.':e&&e.code==='invalid_json'?'The answer came back in the wrong format. Try again.':'We couldn\'t analyze this photo. Try again, or search manually.')+(e&&e.code?' ('+e.code+')':'')}}
   if(cur().name==='results')rerender()}
@@ -1422,7 +1426,7 @@ SCREENS.climb=({id,scan:fromScan})=>{
   const controls=seq?`<div class="row g8"><button class="iconbtn soft" data-act="cStep" data-v="-1" aria-label="Previous move">${I('back')}</button><div class="grow stack" style="min-width:0;text-align:center"><b style="font-weight:600">${mv?`Move ${st.step+1} of ${seq.moves.length}`:`${seq.moves.length} moves`}</b><span class="small muted">${mv?esc(mv.d):'Tap a number on the photo or step through'}</span></div><button class="iconbtn soft" data-act="cStep" data-v="1" aria-label="Next move">${I('chev')}</button></div>`:'';
   const aiHtml=!aiMode?'':`<div class="stack g12"><div class="sec-row"><h2 class="sec">Suggested beta</h2><span class="pill flash">${I('spark','sm')}AI</span></div>${
     !job||job.state==='loading'?`<div class="row g12"><span class="spin"></span><span class="small muted">Reading the holds in your photo. This can take up to a minute.</span></div>`
-    :job.state==='unavailable'?`<div class="notice">${I('spark')}<span>AI beta runs through Claude, which isn't available in this view or wasn't allowed. Open the app on claude.ai and allow it to get a suggested sequence.</span></div>`
+    :job.state==='unavailable'?`<div class="notice">${I('spark')}<span>${esc(job.err||CLAUDE_WHY.unavailable)} <span class="muted" style="font-size:11px">(${esc(job.code||'unavailable')})</span></span></div><div class="row g8">${['denied','not_granted'].includes(job.code)?`<button class="pill-btn" data-act="openPerms">Permissions</button>`:''}<button class="pill-btn ghost" data-act="aiRetry">Try again</button></div>`
     :job.state==='error'?`<div class="notice">${I('spark')}<span>${esc(job.err)} <span class="muted" style="font-size:11px">(${esc(job.code||'')})</span></span></div><button class="btn sm ghost" data-act="aiRetry">Try again</button>`
     :job.state==='none'?`<div class="notice">${I('spark')}<span>Couldn't find a clear line in this photo.${job.note?' '+esc(job.note):''} Try a photo that shows the whole boulder.</span></div><button class="btn sm ghost" data-act="aiRetry">Try again</button>`
     :`${controls}${strip}${job.note?`<p class="small">${esc(job.note)}</p>`:''}<p class="hint">Suggested by AI from your photo. A photo can't show hold depth, friction or reach, so test each move and adjust.</p>`}</div>`;
@@ -1494,6 +1498,27 @@ function createScannedRoute(e,status){S.customAreas=S.customAreas||[];const area
   const ph=storePhoto(scan.photo);const r={id:uid('r_'),name:titleCase(e.name),grade,gradeSystem:disc==='boulder'?'V':'YDS',discipline:disc,climbingAreaId:area.id,sector:e.area||'',photo:null,userPhoto:ph,listed:e.grade&&e.grade!==grade?e.grade:null,description:e.about||(status==='ai-identified'?'Identified by Claude from your photo.':'Added by you from a photo.'),verificationStatus:status,routeMetadata:{},holds:null,moveCount:null};
   S.routes.push(r);save();return r.id}
 function curSeq(){const c=cur().params;if(c.scan&&scan.photo&&scan.ai&&scan.ai.seq)return scan.ai.seq;return BETA.find(b=>b.id===cState(c.id).seq)}
+const CLAUDE_WHY={
+ outside:'This copy of CRUX isn\'t running inside claude.ai, so it can\'t reach Claude. Open the claude.ai link to use AI beta.',
+ unavailable:'Claude isn\'t available to this viewer. Make sure you\'re signed in to claude.ai in this browser. Some plans and organizations don\'t let shared artifacts use Claude.',
+ denied:'Claude was declined for this page. Turn it on in the Permissions menu, then try again.',
+ noimages:'This view can\'t send photos to Claude. Try the claude.ai link in a browser, signed in.',
+ not_granted:'Claude wasn\'t allowed for this page. Turn it on in the Permissions menu, then try again.',
+ sampling_disabled:'Claude isn\'t enabled for this account or organization.',
+ not_declared:'This version of the page doesn\'t have Claude turned on.',
+ capability_disabled:'Claude is turned off for this view.',
+ capability_removed:'This claude.ai app is too old for this feature. Try in a web browser.',
+ images_unavailable:'This view can\'t send photos to Claude. Try the claude.ai link in a browser, signed in.'};
+async function claudeStatus(){
+  try{if(!window.claude||!window.claude.use)return{reason:'outside'};
+    const s=await window.claude.use('sample');if(!s)return{reason:'unavailable'};
+    let perms=null;try{perms=await window.claude.use('permissions')}catch(e){}
+    if(perms){let st='prompt';try{st=await perms.state('sample')}catch(e){}
+      if(st==='prompt'){try{const r=await perms.request(['sample']);st=r&&r.sample||st}catch(e){}}
+      if(st==='denied')return{reason:'denied',perms};if(st==='unavailable')return{reason:'unavailable'}}
+    let l=null;try{l=s.limits?await s.limits():null}catch(e){}
+    if(l&&!l.images)return{reason:'noimages'};
+    return{sample:s,perms}}catch(e){return{reason:'unavailable'}}}
 async function getSample(){try{if(!window.claude||!window.claude.use)return null;const s=await window.claude.use('sample');if(!s)return null;const l=s.limits?await s.limits():null;return l&&l.images?s:null}catch(e){return null}}
 function dataURLToBlob(u){const i=u.indexOf(',');const mime=(u.slice(5,i).split(';')[0])||'image/jpeg';const bin=atob(u.slice(i+1));const a=new Uint8Array(bin.length);for(let k=0;k<bin.length;k++)a[k]=bin.charCodeAt(k);return new Blob([a],{type:mime})}
 async function photoBlob(src){if(!src)return null;if(src.startsWith('data:'))return dataURLToBlob(src);const r=await fetch(src);if(!r.ok)throw new Error('fetch '+r.status);return await r.blob()}
@@ -1514,13 +1539,13 @@ function startAIBeta(rid){const key=rid+'|'+(scan.sampleImg||(scan.photo||'').le
   const job=scan.ai={key,rid,state:'loading',holds:null,seq:null,src:null,note:'',err:''};
   (async()=>{try{job.src=await cropTo45(scan.photo)}catch(e){job.src=null}
     if(scan.ai!==job)return;refreshAI();
-    const sample=await getSample();if(scan.ai!==job)return;
-    if(!sample){job.state='unavailable';refreshAI();return}
+    const cs=await claudeStatus();if(scan.ai!==job)return;const sample=cs.sample;
+    if(!sample){job.state='unavailable';job.code=cs.reason;job.err=CLAUDE_WHY[cs.reason]||CLAUDE_WHY.unavailable;refreshAI();return}
     try{let blob=null;try{blob=await photoBlob(job.src||scan.photo)}catch(e){blob=scan.blob||null}if(!blob)throw {code:'no_image'};
       const out=await sample.json(aiPrompt(RT(rid)),{images:[blob],modelTier:'default'});
       const v=validateAI(out);job.note=String(out&&out.summary||'').slice(0,200);
       if(v){job.holds=v.holds;job.seq={id:'ai',title:'AI suggestion',verificationStatus:'ai',moves:v.moves};job.state='done';cState(rid).step=-1;cState(rid).overlay=true}else job.state='none'}
-    catch(e){const code=e&&e.code||'unknown';job.code=code;const perm=['not_granted','sampling_disabled','not_declared','capability_disabled','capability_removed','images_unavailable'];job.state=perm.includes(code)?'unavailable':'error';job.err=({rate_limited:'You\'ve hit a usage limit for now. Wait a bit, then try again.',image_rejected:'Claude couldn\'t open this image. Try a different photo.',invalid_json:'Claude\'s answer came back in the wrong format. Try again.',refused:'Claude declined to analyze this photo. Try a different photo.',empty_completion:'Claude didn\'t return anything. Try again.',session_expired:'Your claude.ai session expired. Sign in again, then retry.',no_image:'The photo couldn\'t be prepared for analysis. Retake or upload it again.',upstream_error:'The connection to Claude dropped. Try again.'})[code]||'Something went wrong reading this photo. Try again.';try{console.warn('AI beta failed',code,e&&e.message)}catch(_){}}
+    catch(e){const code=e&&e.code||'unknown';job.code=code;const perm=['not_granted','sampling_disabled','not_declared','capability_disabled','capability_removed','images_unavailable'];job.state=perm.includes(code)?'unavailable':'error';if(perm.includes(code)){job.err=CLAUDE_WHY[code];if(scan.ai===job)refreshAI();return}job.err=({rate_limited:'You\'ve hit a usage limit for now. Wait a bit, then try again.',image_rejected:'Claude couldn\'t open this image. Try a different photo.',invalid_json:'Claude\'s answer came back in the wrong format. Try again.',refused:'Claude declined to analyze this photo. Try a different photo.',empty_completion:'Claude didn\'t return anything. Try again.',session_expired:'Your claude.ai session expired. Sign in again, then retry.',no_image:'The photo couldn\'t be prepared for analysis. Retake or upload it again.',upstream_error:'The connection to Claude dropped. Try again.'})[code]||'Something went wrong reading this photo. Try again.';try{console.warn('AI beta failed',code,e&&e.message)}catch(_){}}
     if(scan.ai===job)refreshAI()})()}
 
 
@@ -1663,6 +1688,7 @@ const ACT={
  cSeq:el=>{const st=cState(cur().params.id);st.seq=el.dataset.id;st.step=-1;st.overlay=true;rerender()},
  cNear:()=>{const st=cState(cur().params.id);st.near=!st.near;rerender()},
  cGo:el=>{const st=cState(cur().params.id);st.overlay=true;st.step=+el.dataset.v;rerender()},
+ openPerms:async()=>{try{const p=await window.claude.use('permissions');if(p){await p.manage();scan.ai=null;rerender()}}catch(e){toast('Open the Permissions menu at the top of the artifact')}},
  aiRetry:()=>{scan.ai=null;rerender()},
  cStep:el=>{const st=cState(cur().params.id);const seq=curSeq();if(!seq)return;st.overlay=true;st.step=clamp(st.step+(+el.dataset.v),-1,seq.moves.length-1);rerender()},
  // scan
