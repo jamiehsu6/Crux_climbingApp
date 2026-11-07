@@ -91,7 +91,8 @@ p{margin:0}
 .topbar .t{font:600 15px var(--f-body)}
 .iconbtn{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;flex:none}
 .iconbtn.soft{background:var(--surface);border:1px solid var(--line)}
-.iconbtn.glass,.glass{background:rgba(20,18,15,.28);color:var(--chalk);border:1px solid rgba(251,248,242,.22);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.iconbtn.glass,.glass{background:rgba(20,18,15,.55);color:var(--chalk);border:1px solid rgba(251,248,242,.18);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.vw-stage svg text[fill="#FBF8F2"]{paint-order:stroke;stroke:rgba(14,12,10,.8);stroke-width:6px;stroke-linejoin:round}
 .ic{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
 .ic.sm{width:16px;height:16px}.ic.lg{width:24px;height:24px}
 .ic.fill{fill:currentColor;stroke:none}
@@ -125,7 +126,7 @@ p{margin:0}
 .pill.flash{background:color-mix(in srgb,var(--ochre) 20%,transparent);color:var(--ochre)}
 .pill.onsight{background:var(--ink);color:var(--paper)}
 .pill.attempt,.pill.active{background:var(--sunk);color:var(--ink)}
-.pill.glassy{background:rgba(251,248,242,.18);color:var(--chalk);border:1px solid rgba(251,248,242,.25);backdrop-filter:blur(8px)}
+.pill.glassy{background:rgba(14,12,10,.62);color:var(--chalk);border:1px solid rgba(251,248,242,.16);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 .grade{font:500 13px var(--f-mono);letter-spacing:0}
 
 /* cards */
@@ -861,7 +862,7 @@ function activityCard(a){
     return`<article class="post">${head(area)}
      <button class="post-title" data-act="openSession" data-id="${s.id}">${esc(s.title||'Session at '+area)}</button>
      ${img?`<button class="post-photo" data-act="openSession" data-id="${s.id}" aria-label="Open session"><img src="${img}" alt="${esc(area)}" loading="lazy"></button>`:''}
-     ${statLine([`<b>${st.climbs}</b> climb${st.climbs===1?'':'s'}`,`<b>${st.sends}</b> send${st.sends===1?'':'s'}`,st.hard?`Hardest <b>${esc(showGrade(st.hard.g,st.hard.disc))}</b>`:'',dur?dur.replace(' 00m','').replace(/h 0(\d)m/,'h $1m'):''])}
+     ${statLine([`<b>${st.climbs}</b> climb${st.climbs===1?'':'s'}`,`<b>${st.sends}</b> send${st.sends===1?'':'s'}`,st.hard?`Hardest <b>${esc(showGrade(st.hard.g,st.hard.disc))}</b>`:''])}
      ${s.notes?`<p class="post-cap">${esc(s.notes)}</p>`:''}${foot}</article>`}
   if(a.activityType==='project_complete'){const p=S.projects.find(p=>p.id===a.linkedProjectId);const r=RT(p?p.routeId:a.meta?.routeId);if(!r)return'';const n=p?projSessions(p).length:a.meta?.sessions;
     return`<article class="post">${head(AR(r.climbingAreaId).name)}
@@ -923,9 +924,9 @@ function activityFootOnly(a){const kd=kudosOf(a.id);const mine=kd.some(k=>k.user
 function projectCard(p){const r=RT(p.routeId);const N=moveTotal(r);const hp=highPoint(p);const ss=projSessions(p);const last=ss[ss.length-1];
   return`<button class="pcard" data-act="openProject" data-id="${p.id}"><span class="photo" style="position:absolute;inset:0"><img src="${routeImg(r)}" alt=""><span class="scrim top"></span><span class="credit" style="top:46px;bottom:auto">${hasReal(r)?esc(CREDITS[r.photo].author)+' · '+esc(CREDITS[r.photo].license):''}</span></span>
    <span class="tl"><span class="pill glassy">${p.status==='completed'?I('check','sm')+'Sent':p.status==='active'?'Active':'Wishlist'}</span>${showGrade(r.grade,r.discipline)?`<span class="pill glassy mono">${esc(showGrade(r.grade,r.discipline))}</span>`:''}</span>
-   <span class="info on-photo"><span class="eyebrow">${esc(AR(r.climbingAreaId).name)} · ${esc(r.sector)}</span><span class="display d-m">${esc(r.name)}</span>
+   <span class="info on-photo"><span class="eyebrow">${esc([AR(r.climbingAreaId).name,r.sector].filter((x,i,a)=>x&&a.indexOf(x)===i).join(' · '))}</span><span class="display d-m">${esc(r.name)}</span>
     ${p.status!=='wishlist'&&N?`<span class="ms-track">${Array.from({length:N},(_,i)=>`<i class="${p.status==='completed'||i<hp?'on':''}"></i>`).join('')}</span>`:''}
-    <span class="row between small" style="color:rgba(251,248,242,.85)"><span>${esc(latestMilestone(p))}</span><span>${ss.length?ss.length+' session'+(ss.length>1?'s':'')+' · '+fmtD(last.date,{month:'short',day:'numeric'}):'Added '+fmtD(p.dateAdded,{month:'short',day:'numeric'})}</span></span></span></button>`}
+    <span class="small" style="color:rgba(251,248,242,.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block">${esc([latestMilestone(p),ss.length?ss.length+' session'+(ss.length>1?'s':''):'',ss.length?fmtD(last.date,{month:'short',day:'numeric'}):'Added '+fmtD(p.dateAdded,{month:'short',day:'numeric'})].filter(Boolean).join(' · '))}</span></span></button>`}
 
 function addProject(routeId,status){let p=S.projects.find(p=>p.routeId===routeId);if(p)return p;status='wishlist';
   p={id:uid('p_'),userId:'me',routeId,status,dateAdded:todayISO,dateCompleted:null,personalNotes:'',nextSessionGoal:'',preferredBetaId:null,savedBeta:[],moveNotes:{}};S.projects.push(p);
@@ -1458,6 +1459,7 @@ SCREENS.climb=({id,scan:fromScan})=>{
    mount(){mountViewer($('#climb-viewer'),{route:r,seq,step:st.step,overlay:st.overlay,...(aiMode?{src:(job&&job.src)||scan.photo,holds:(job&&job.holds)||[],busy:!job||job.state==='loading',creditHtml:scan.sampleImg&&CREDITS[scan.sampleImg]?`<span class="credit l">${esc(CREDITS[scan.sampleImg].author)} · ${esc(CREDITS[scan.sampleImg].license)}</span>`:''}:{}),annotations:fromScan?[]:(S.myAnnotations[id]||[]),annot:st.annot,showAnn:true,
      onToggleOverlay(){st.overlay=!st.overlay;rerender()},onToggleAnnot(){st.annot=!st.annot;rerender();if(st.annot)toast('Tap the rock to add a mark')},onSelectMove(i){st.step=i;rerender()},
      onTap(x,y){annotSheet(id,x,y)},onAnnTap(an){annotSheet(id,an.x,an.y,an)}});
+     const strip=$('#mv-strip');if(strip){const key=id+'|'+(seq?seq.id:'');strip.scrollLeft=(window._stripMemo&&window._stripMemo.key===key)?window._stripMemo.x:0;const on=$('.mv.on',strip);const target=on?Math.max(0,on.offsetLeft-strip.offsetLeft-(strip.clientWidth-on.offsetWidth)/2):0;requestAnimationFrame(()=>strip.scrollTo({left:target,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'}));strip.addEventListener('scroll',()=>{window._stripMemo={key,x:strip.scrollLeft}},{passive:true});window._stripMemo={key,x:target}}
      const n=$('#mv-note');if(n)n.onchange=()=>{const pp=S.projects.find(x=>x.id===n.dataset.pid);pp.moveNotes=pp.moveNotes||{};if(n.value.trim())pp.moveNotes[n.dataset.move]=n.value.trim();else delete pp.moveNotes[n.dataset.move];save();toast('Note saved')}}}
 };
 
