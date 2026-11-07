@@ -1599,8 +1599,8 @@ const routeOfProject=id=>(S.projects.find(p=>p.id===id)||{}).routeId;
 const ACT={
  tab:el=>{if(el.dataset.t==='scan'){scan.photo=null;scan.sampleRoute=null;scan.blob=null}tab(el.dataset.t)},
  go:el=>go(el.dataset.s),back:()=>back(),closeSheet:()=>closeSheet(),
- onbNext:()=>{ONB.step=1;rerender()},
- onbDone:()=>{if(!S.me.displayName.trim())S.me.displayName='Climber';if(!S.me.username)S.me.username=S.me.displayName.toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,14)||'climber';save();ONB.step=2;crewQ='';rerender()},
+ onbNext:()=>{ONB.step=1;render(true)},
+ onbDone:()=>{if(!S.me.displayName.trim())S.me.displayName='Climber';if(!S.me.username)S.me.username=S.me.displayName.toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,14)||'climber';save();ONB.step=2;crewQ='';render(true)},
  onbFinish:()=>{S.onboarded=true;save();ONB={step:0};crewQ='';tab('home');toast('Welcome to CRUX')},
  setMe:el=>{S.me[el.dataset.k]=el.dataset.v;save();rerender()},
  setPref:el=>{S.me.prefs[el.dataset.k]=el.dataset.v;save();rerender()},
