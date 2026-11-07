@@ -243,7 +243,8 @@ input.input[type=date]::-webkit-calendar-picker-indicator{position:absolute;inse
 
 /* home: open, photography-led feed */
 .home-top{min-height:54px;padding-top:calc(var(--sb) + 18px);padding-bottom:6px}
-.pill-btn{display:inline-flex;align-items:center;gap:5px;height:32px;padding:0 13px;border-radius:999px;background:var(--ink);color:var(--paper);font:600 12.5px var(--f-body)}
+.pill-btn{display:inline-flex;align-items:center;gap:5px;height:32px;padding:0 13px;border-radius:999px;background:var(--ink);color:var(--paper);font:600 12.5px var(--f-body);white-space:nowrap;flex:none}
+.pill-btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
 .home-sec{display:flex;flex-direction:column;gap:12px}
 .home-top+.scroll>.home-sec:first-child{padding-top:18px}
 .home-h{font:600 13px var(--f-body);color:var(--ink-2);margin:0}
@@ -1426,9 +1427,9 @@ SCREENS.climb=({id,scan:fromScan})=>{
     :`${controls}${strip}${job.note?`<p class="small">${esc(job.note)}</p>`:''}<p class="hint">Suggested by AI from your photo. A photo can't show hold depth, friction or reach, so test each move and adjust.</p>`}</div>`;
   const status=p?{active:'Projecting',wishlist:'Wishlist',completed:'Sent'}[p.status]:null;
   const anyP=S.projects.find(x=>x.routeId===id);
-  const action=!p?`<div class="row g8"><button class="btn grow" data-act="logClimb" data-id="${id}">${I('plus')}Log this climb</button>${anyP?`<span class="pill" style="align-self:center">${{active:'Active project',completed:'Completed',wishlist:'On wishlist'}[anyP.status]}</span>`:`<button class="btn ghost grow" data-act="addWishlist" data-id="${id}">${I('bookmark')}Add to Wishlist</button>`}</div>`
-   :p.status==='completed'?`<button class="btn block" data-act="openRecap" data-id="${p.id}">${I('spark')}See your send recap</button>`
-   :`<button class="btn block" data-act="logClimb" data-id="${id}">${I('plus')}Log progress</button>`;
+  const action=!p?`<div class="row g8 wrap"><button class="pill-btn" data-act="logClimb" data-id="${id}">${I('plus','sm')}Log this climb</button>${anyP?`<span class="pill">${{active:'Active project',completed:'Completed',wishlist:'On wishlist'}[anyP.status]}</span>`:`<button class="pill-btn ghost" data-act="addWishlist" data-id="${id}">${I('bookmark','sm')}Add to Wishlist</button>`}</div>`
+   :p.status==='completed'?`<div class="row g8"><button class="pill-btn" data-act="openRecap" data-id="${p.id}">${I('spark','sm')}See your send recap</button></div>`
+   :`<div class="row g8"><button class="pill-btn" data-act="logClimb" data-id="${id}">${I('plus','sm')}Log progress</button></div>`;
   const timeline=ss.map((s,i)=>{const cs=S.climbs.filter(c=>c.sessionId===s.id&&c.projectId===p.id);const sent=cs.some(c=>NEWSEND.includes(c.result));
     const line=sent?'Sent!':cs.map(c=>c.milestone||(c.highPoint&&N?`Reached move ${c.highPoint} of ${N}`:`${c.attempts} attempts`)).join(' · ');
     return`<button class="tl-item ${sent?'send':''}" style="text-align:left" data-act="openSession" data-id="${s.id}"><span class="eyebrow">Session ${i+1} · ${fmtD(s.date,{month:'short',day:'numeric'})}</span><span>${esc(line)}</span></button>`}).join('');
