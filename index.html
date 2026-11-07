@@ -1598,7 +1598,7 @@ function crewBody(onb){const all=S.people.filter(p=>p.id!=='me');const q=crewQ.t
     return`<section class="crew-sec"><h2 class="home-h">Results</h2>${res.map(p=>personRow(p,p.home)).join('')||`<p class="crew-empty">No climbers match “${esc(crewQ)}”. Check the spelling, or invite them to join.</p>${inviteRow()}`}</section>`}
   const inc=S.requests.filter(r=>r.to==='me').map(r=>user(r.from)).filter(p=>p.id);
   const sugg=all.filter(p=>['none','out'].includes(rel(p.id)));
-  return`${inc.length?`<section class="crew-sec"><h2 class="home-h">Friend requests</h2>${inc.map(p=>personRow(p,'wants to be friends')).join('')}</section>`:''}
+  return`${inc.length&&!onb?`<section class="crew-sec"><h2 class="home-h">Friend requests</h2>${inc.map(p=>personRow(p,'wants to be friends')).join('')}</section>`:''}
    <section class="crew-sec"><h2 class="home-h">Suggested climbers</h2>${sugg.map(p=>personRow(p,p.home)).join('')||`<p class="crew-empty">No more suggestions right now. Search by name, or invite your friends.</p>`}</section>
    <section class="crew-sec">${inviteRow()}</section>`}
 function crewSearch(){return`<div class="crew-search"><span>${I('search')}</span><input class="input" id="crew-q" placeholder="Search by name or @username" value="${esc(crewQ)}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Search climbers"></div>`}
@@ -1616,6 +1616,29 @@ SCREENS.friends=()=>{const fr=S.friends.map(user).filter(p=>p.id).sort((a,b)=>a.
 function inviteSheet(){const link='crux.app/invite/'+(S.me.username||'you');const text=`Climb with me on CRUX, the outdoor climbing logbook: https://${link}`;
   openSheet(sheetHead('Invite friends','Share this link by text or chat.')+`<div class="stack g12"><div class="card" style="padding:14px"><p id="inv-t" style="overflow-wrap:anywhere">${esc(text)}</p></div><button class="btn block" id="inv-copy">${I('share')}Copy invite</button><p class="hint">Invite links are placeholders in this prototype and won't open anything yet.</p></div>`,{onMount(sh){$('#inv-copy',sh).onclick=()=>{navigator.clipboard?.writeText(text).then(()=>toast('Invite copied'),()=>{const r=document.createRange();r.selectNodeContents($('#inv-t',sh));getSelection().removeAllRanges();getSelection().addRange(r);toast('Text selected. Copy it to share.')})}}})}
 function friendMenu(id){const u=user(id);openSheet(sheetHead(esc(u.displayName),'@'+esc(u.username))+`<div class="stack g12"><button class="btn ghost block" data-act="openUserFromSheet" data-id="${id}">View profile</button><button class="btn block" style="background:var(--rust);color:#fff" data-act="removeFriend" data-id="${id}">Remove friend</button><p class="hint">You'll stop seeing each other's friends-only sessions. They won't be notified.</p></div>`)}
+
+
+/* Extra demo sessions (temps in °F) so recent stats show natural variation. Everything else derives from these logs. */
+function ensureDemoV2(){
+  if(S.demoV2)return;
+  const add=[
+   ['n1','2026-10-12','buttermilks','16:00','18:30',[],[61,'Clear'],[['heroroof',1,'repeat']],'Golden hour laps','Quick evening session. Hero Roof never gets old.','public'],
+   ['n2','2026-10-14','joshua','09:00','13:00',['u_priya'],[72,'Sunny'],[['stemgem',1,'repeat'],['snl',2,'repeat']],'Hidden Valley tune-up','Fast laps on the classics before the Hueco trip.','public'],
+   ['n3','2026-10-26','joshua','08:30','12:00',['u_priya'],[64,'Clear'],[['snl',1,'repeat'],['stemgem',2,'repeat']],'Rest-day mileage','Easy movement the day after the Drifter send.','followers'],
+   ['n4','2026-10-28','hueco','09:00','15:00',['u_theo'],[68,'Windy'],[['babyface',5,'attempt'],['governor',2,'attempt']],'Hueco, day one','Babyface feels closer. The Governor is still out of reach.','public'],
+   ['n5','2026-10-30','hueco','09:00','14:00',['u_theo'],[70,'Clear'],[['babyface',4,'attempt'],['loaded',3,'attempt']],'Hueco, day two','Linked further on Babyface. Tried Loaded with Power for fun.','public'],
+   ['n6','2026-11-04','yosemite','07:30','10:30',['u_alex'],[48,'Clear'],[['midnight',3,'attempt',4]],'Quick dawn session','Short session on Midnight Lightning before work.','followers']
+  ];
+  for(const [id,date,area,st,en,partners,[t,w],cl,title,notes,vis] of add){
+    if(S.sessions.find(x=>x.id===id))continue;
+    S.sessions.push({id,userId:'me',date,climbingAreaId:area,startTime:st,endTime:en,partners,conditions:{temp:t,weather:w},title,notes,photos:[],visibility:vis});
+    cl.forEach(([r,att,res,hp],i)=>{const cid=id+'c'+i;const p=S.projects.find(p=>p.routeId===r&&p.status==='active');
+      S.climbs.push({id:cid,sessionId:id,routeId:r,projectId:res==='attempt'&&p?p.id:null,attempts:att,result:res,highPoint:hp||null,milestone:hp&&moveTotal(RT(r))?`Reached move ${hp} of ${moveTotal(RT(r))}`:null,notes:'',photos:[],temp:t,weather:w,createdAt:date});
+      if(res!=='attempt')S.ascents.push({id:'a_'+cid,userId:'me',routeId:r,sessionId:id,ascentStyle:res,gradeAtTime:RT(r).grade,completedAt:date})});
+    if(vis!=='private')S.activities.push({id:'act_'+id,userId:'me',activityType:'session',linkedSessionId:id,linkedProjectId:null,createdAt:date+'T'+en,visibility:vis});
+  }
+  S.demoV2=true;
+}
 
 /* ============================================================
    ACTIONS
@@ -1635,7 +1658,7 @@ const ACT={
  pickAvatar:async()=>{const [f]=await pickFiles('file-img');if(!f)return;try{S.me.avatar=await downscale(f,300);save();rerender()}catch(e){toast('That file isn\'t an image we can read')}},
  rmAvatar:()=>{S.me.avatar=null;save();rerender()},
  saveProfile:()=>{save();back();toast('Profile saved')},
- resetDemo:el=>{if(el.dataset.confirm!=='1'){el.dataset.confirm='1';el.textContent='Tap again to erase everything';return}try{localStorage.removeItem(KEY)}catch(e){}S=seed();toF();S.unifiedLog=true;ensureSocial();ONB={step:0};climbUI={};stack=[{name:'onboarding',params:{}}];render(true)},
+ resetDemo:el=>{if(el.dataset.confirm!=='1'){el.dataset.confirm='1';el.textContent='Tap again to erase everything';return}try{localStorage.removeItem(KEY)}catch(e){}S=seed();toF();S.unifiedLog=true;ensureSocial();ensureDemoV2();reconcileProjects();save();ONB={step:0};climbUI={};stack=[{name:'onboarding',params:{}}];render(true)},
  // feed & people
  kudos:el=>{const id=el.dataset.id;const i=S.kudos.findIndex(k=>k.activityId===id&&k.userId==='me');if(i>=0)S.kudos.splice(i,1);else S.kudos.push({activityId:id,userId:'me'});save();rerender()},
  comments:el=>commentSheet(el.dataset.id),
@@ -1732,6 +1755,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#sheet-root').fi
 
 /* ---------- boot ---------- */
 try{ensureSocial()}catch(e){console.warn(e)}
+try{ensureDemoV2()}catch(e){console.warn(e)}
 try{S.routes.forEach(r=>{if(['user-added','ai-identified'].includes(r.verificationStatus))r.name=titleCase(r.name)});(S.customAreas||[]).forEach(a=>{a.name=titleCase(a.name)})}catch(e){}
 try{if(!S.unifiedLog){S.projects.filter(p=>p.status==='wishlist').forEach(p=>S.climbs.forEach(c=>{if(c.projectId===p.id)c.projectId=null}));S.unifiedLog=true}reconcileProjects();save()}catch(e){}
 if(S.onboarded){stack=[{name:'home',params:{}}];curTab='home'}else{stack=[{name:'onboarding',params:{}}]}
