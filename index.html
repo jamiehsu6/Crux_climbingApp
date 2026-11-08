@@ -647,6 +647,7 @@ const A=id=>AREAS.find(a=>a.id===id);
 function R_(id,name,grade,disc,area,sector,desc,extra={}){return{id,name,grade,gradeSystem:disc==='boulder'?'V':'YDS',discipline:disc,climbingAreaId:area,sector,photo:extra.photo||id,listed:extra.listed||null,description:desc,verificationStatus:'reference',routeMetadata:extra.meta||{},holds:HOLDS[id]||null,moveCount:extra.moves||null}}
 const ROUTES=[
  R_('heroroof','Hero Roof','V0','boulder','buttermilks','Buttermilk Country','Big holds out a short roof. One of the most popular easy problems in the Buttermilks.',{meta:{style:'Roof, jugs'}}),
+ R_('ironman','Iron Man Traverse','V4','boulder','buttermilks','Iron Man Area · Iron Man Boulder','A popular Buttermilks traverse on the Iron Man Boulder. Sustained moves along good edges.',{meta:{style:'Traverse'}}),
  R_('hpd','High Plains Drifter','V7','boulder','buttermilks','Buttermilk Country','A tall Buttermilks classic. Committing moves up a steep granite face.',{meta:{style:'Highball face'},moves:6}),
  R_('stemgem','Stem Gem','V4','boulder','joshua','Hidden Valley Campground','A classic V4 in Hidden Valley Campground, Joshua Tree National Park.',{meta:{style:'Face'},moves:5}),
  R_('snl','Saturday Night Live','V4','boulder','joshua','Joshua Tree','A popular moderate problem in Joshua Tree National Park.',{meta:{style:'Face'}}),
@@ -766,6 +767,7 @@ try{const raw=localStorage.getItem(KEY);if(raw){S=JSON.parse(raw);if(S.v!==4)S=n
 if(!S)S=seed();
 // keep static DB fields fresh
 S.routes=S.routes.map(r=>{const base=ROUTES.find(x=>x.id===r.id);return base?{...base}:r});
+ROUTES.forEach(r=>{if(!S.routes.some(x=>x.id===r.id))S.routes.push({...r})});
 function toF(){if(S.tempF)return;S.sessions.forEach(s=>{const t=s.conditions&&s.conditions.temp;if(t!==''&&t!=null&&!isNaN(+t))s.conditions.temp=Math.round(+t*9/5+32)});S.tempF=true}
 toF();
 let saveWarned=false;
@@ -1312,8 +1314,9 @@ SCREENS.logSession=()=>{const d=draft;const area=AR(d.climbingAreaId);
 function climbSheet(i){
   const d=draft;const blank={routeId:null,attempts:1,result:'flash',highPoint:null,saveProject:false,note:'',photos:[],temp:'',weather:''};
   const c=i>=0?{...blank,...d.climbs[i],photos:[...(d.climbs[i].photos||[])]}:{...blank};let q='';
-  const triedBefore=rid=>S.climbs.some(x=>x.routeId===rid&&x.sessionId!==d.id&&S.sessions.find(s=>s.id===x.sessionId)?.userId==='me')||d.climbs.some((x,j)=>j!==i&&x.routeId===rid);
-  const sentBefore=rid=>S.ascents.some(a=>a.userId==='me'&&a.routeId===rid&&a.sessionId!==d.id);
+  /* History follows Projects, so the sheet never claims a send the Projects tab doesn't show */
+  const triedBefore=rid=>S.climbs.some(x=>x.routeId===rid&&x.projectId&&x.sessionId!==d.id)||d.climbs.some((x,j)=>j!==i&&x.routeId===rid);
+  const sentBefore=rid=>S.projects.some(p=>p.routeId===rid&&p.status==='completed'&&S.climbs.some(x=>x.projectId===p.id&&x.sessionId!==d.id&&SENT.includes(x.result)));
   const fixStyle=()=>{if(c.result==='attempt')return;const r=c.routeId;if(sentBefore(r)){c.result='repeat';return}if(c.result==='repeat')c.result='sent';
     if((c.attempts>1||triedBefore(r))&&(c.result==='flash'||c.result==='onsight'))c.result='sent'};
   const draw=()=>{const r=c.routeId&&RT(c.routeId);
