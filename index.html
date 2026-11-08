@@ -1289,8 +1289,9 @@ SCREENS.home=()=>{
 function climbResultText(c){return c.result==='attempt'?'Attempted':'Sent · '+RESULT_LABEL[c.result]}
 function projectFor(rid){return S.projects.find(p=>p.routeId===rid&&p.status!=='completed')}
 function climbProjectBadge(c){const p=projectFor(c.routeId)||(c.projectId&&S.projects.find(p=>p.id===c.projectId));
-  if(c.result==='attempt'){if(p&&p.status==='active')return'Updates project';if(c.saveProject)return p&&p.status==='wishlist'?'Moves to Active projects':'New project';return''}
-  if(NEWSEND.includes(c.result)&&p)return'Completes project';return''}
+  if(p&&p.status==='completed')return'';
+  if(c.result==='attempt')return p&&p.status==='active'?'Updates project':'Active project';
+  return'Completed project'}
 SCREENS.logSession=()=>{const d=draft;const area=AR(d.climbingAreaId);
   const sends=d.climbs.filter(c=>c.result!=='attempt').length;
   const climbsHtml=d.climbs.map((c,i)=>{const r=RT(c.routeId);const badge=climbProjectBadge(c);return`<button class="mini" style="padding:12px 14px" data-act="editClimb" data-i="${i}"><span class="th" style="width:48px;height:48px;border-radius:10px">${r?`<img src="${routeImg(r)}" alt="" style="width:100%;height:100%;object-fit:cover">`:''}</span><span class="grow stack g4" style="min-width:0"><b style="font-weight:600">${esc(r?.name||'Climb')} ${gradeOf(r)}</b><span class="small muted">${climbResultText(c)} · ${c.attempts} attempt${c.attempts==1?'':'s'}${c.highPoint?' · move '+c.highPoint:''}</span>${badge?`<span class="small" style="color:var(--ochre)">${I('mountain','sm')} ${badge}</span>`:''}</span>${I('chev')}</button>`}).join('');
@@ -1323,9 +1324,9 @@ function climbSheet(i){
     fixStyle();const N=moveTotal(r);const p=projectFor(r.id);const sent=c.result!=='attempt';const first=!triedBefore(r.id)&&c.attempts===1;const rep=sentBefore(r.id);
     const styles=rep?[['repeat','Repeat']]:[['flash','Flash'],['onsight','Onsight'],['sent','Redpoint']];
     const styleHint={flash:'First try, with beta or after watching someone.',onsight:'First try, with no information at all.',sent:'Sent after earlier attempts.',repeat:'You\'ve sent this before.'}[c.result];
-    const projLine=!sent?(p&&p.status==='active'?`<div class="notice">${I('mountain')}<span><b>Active project.</b> These attempts are added to its progress.</span></div>`
-      :`<button class="row between" style="width:100%;text-align:left;gap:12px" data-x="proj"><span class="stack"><b style="font-weight:600">Save to My Projects</b><span class="hint">${p&&p.status==='wishlist'?'Moves it from Wishlist to Active and tracks progress.':'Track your progress on this climb over sessions.'}</span></span><span class="toggle ${c.saveProject?'on':''}" role="switch" aria-checked="${!!c.saveProject}"></span></button>`)
-      :p?`<div class="notice">${I('check')}<span><b>${p.status==='active'?'Active project':'On your wishlist'}.</b> Saving moves it to Completed.</span></div>`:'';
+    const doneP=!p&&S.projects.find(q=>q.routeId===r.id&&q.status==='completed');
+    const projLine=doneP?'':!sent?`<div class="notice">${I('mountain')}<span>${p&&p.status==='active'?'<b>Active project.</b> These attempts are added to its progress.':'Saving adds this to <b>Active</b> projects.'}</span></div>`
+      :`<div class="notice">${I('check')}<span>Saving adds this to <b>Completed</b> projects.</span></div>`;
     const extras=c.note||c.photos.length||c.temp!==''||c.weather;
     return sheetHead(esc(r.name),esc(showGrade(r.grade,r.discipline))+' · '+esc(AR(r.climbingAreaId).name))+`<div class="stack g16">
      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${[['sent','Sent'],['attempt','Attempted']].map(([k,l])=>`<button class="btn ${(k==='attempt')===!sent?'':'ghost'}" data-x="out" data-v="${k}">${k==='sent'?I('check'):I('target')}${l}</button>`).join('')}</div>
@@ -1361,9 +1362,24 @@ function climbSheet(i){
 
 /* Save: sessions and projects share the same climb records. Projects are reconciled from them. */
 function newProjectFor(rid,date){const p={id:uid('p_'),userId:'me',routeId:rid,status:'active',dateAdded:date,dateCompleted:null,personalNotes:'',nextSessionGoal:'',preferredBetaId:(BETA.find(b=>b.routeId===rid)||{}).id||null,savedBeta:[],moveNotes:{}};S.projects.push(p);return p}
+
+/* Every logged climb belongs to a project: attempts -> Active, sends -> Completed. Existing wishlist items stay on the wishlist. */
+function autoProjects(){
+  if(S.autoProjV)return;
+  const byDate=S.climbs.filter(c=>!c.projectId).map(c=>({c,s:S.sessions.find(s=>s.id===c.sessionId)})).filter(x=>x.s&&x.s.userId==='me').sort((a,b)=>a.s.date.localeCompare(b.s.date));
+  for(const {c,s} of byDate){
+    if(S.projects.some(q=>q.routeId===c.routeId&&q.status==='wishlist'))continue;
+    const done=S.projects.find(q=>q.routeId===c.routeId&&q.status==='completed');if(done)continue;
+    let p=S.projects.find(q=>q.routeId===c.routeId&&q.status==='active');
+    if(!p)p=newProjectFor(c.routeId,s.date);
+    c.projectId=p.id;
+    if(SENT.includes(c.result)){p.status='completed';p.dateCompleted=s.date}
+  }
+  reconcileProjects();S.autoProjV=true;
+}
 function reconcileProjects(){const done=[];
   for(const p of S.projects){const cl=S.climbs.filter(c=>c.projectId===p.id).map(c=>({c,s:S.sessions.find(s=>s.id===c.sessionId)})).filter(x=>x.s).sort((a,b)=>a.s.date.localeCompare(b.s.date));
-    const prev=p.status;const send=cl.find(x=>NEWSEND.includes(x.c.result));
+    const prev=p.status;const send=cl.find(x=>SENT.includes(x.c.result));
     if(send){p.status='completed';p.dateCompleted=send.s.date}
     else if(cl.length||prev==='completed'){p.status='active';p.dateCompleted=null}
     if(cl.length&&cl[0].s.date<p.dateAdded)p.dateAdded=cl[0].s.date;
@@ -1379,8 +1395,8 @@ function commitDraft(){
   S.climbs=S.climbs.filter(c=>c.sessionId!==sid);S.ascents=S.ascents.filter(a=>a.sessionId!==sid);
   d.climbs.forEach((c,i)=>{const r=RT(c.routeId);const N=moveTotal(r);
     let p=(c.projectId&&S.projects.find(p=>p.id===c.projectId))||projectFor(c.routeId);let pid=null;
-    if(c.result==='attempt'){if(p&&(p.status==='active'||p.id===c.projectId))pid=p.id;else if(c.saveProject){if(!p)p=newProjectFor(c.routeId,d.date);pid=p.id}}
-    else if(NEWSEND.includes(c.result)&&p)pid=p.id;
+    const done=S.projects.find(q=>q.routeId===c.routeId&&q.status==='completed');
+    if(p)pid=p.id;else if(!done||(c.projectId&&done.id===c.projectId)){if(done)pid=done.id;else pid=newProjectFor(c.routeId,d.date).id}
     const cl={id:sid+'c'+i,sessionId:sid,routeId:c.routeId,projectId:pid,attempts:c.attempts,result:c.result,highPoint:c.result==='attempt'?c.highPoint||null:null,milestone:c.result==='attempt'&&c.highPoint&&N?`Reached move ${c.highPoint} of ${N}`:null,notes:c.note||'',photos:c.photos||[],temp:c.temp??'',weather:c.weather||'',createdAt:d.date};
     S.climbs.push(cl);
     if(SENT.includes(c.result))S.ascents.push({id:'a_'+cl.id,userId:'me',routeId:c.routeId,sessionId:sid,ascentStyle:c.result,gradeAtTime:r.grade,completedAt:d.date})});
@@ -1679,7 +1695,7 @@ const ACT={
  pickAvatar:async()=>{const [f]=await pickFiles('file-img');if(!f)return;try{S.me.avatar=await downscale(f,300);save();rerender()}catch(e){toast('That file isn\'t an image we can read')}},
  rmAvatar:()=>{S.me.avatar=null;save();rerender()},
  saveProfile:()=>{save();back();toast('Profile saved')},
- resetDemo:el=>{if(el.dataset.confirm!=='1'){el.dataset.confirm='1';el.textContent='Tap again to erase everything';return}try{localStorage.removeItem(KEY)}catch(e){}S=seed();toF();S.unifiedLog=true;ensureSocial();ensureDemoV2();reconcileProjects();save();ONB={step:0};climbUI={};stack=[{name:'onboarding',params:{}}];render(true)},
+ resetDemo:el=>{if(el.dataset.confirm!=='1'){el.dataset.confirm='1';el.textContent='Tap again to erase everything';return}try{localStorage.removeItem(KEY)}catch(e){}S=seed();toF();S.unifiedLog=true;ensureSocial();ensureDemoV2();reconcileProjects();autoProjects();save();ONB={step:0};climbUI={};stack=[{name:'onboarding',params:{}}];render(true)},
  // feed & people
  kudos:el=>{const id=el.dataset.id;const i=S.kudos.findIndex(k=>k.activityId===id&&k.userId==='me');if(i>=0)S.kudos.splice(i,1);else S.kudos.push({activityId:id,userId:'me'});save();rerender()},
  comments:el=>commentSheet(el.dataset.id),
@@ -1777,6 +1793,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#sheet-root').fi
 /* ---------- boot ---------- */
 try{ensureSocial()}catch(e){console.warn(e)}
 try{ensureDemoV2()}catch(e){console.warn(e)}
+try{autoProjects();save()}catch(e){console.warn(e)}
 try{S.routes.forEach(r=>{if(['user-added','ai-identified'].includes(r.verificationStatus))r.name=titleCase(r.name)});(S.customAreas||[]).forEach(a=>{a.name=titleCase(a.name)})}catch(e){}
 try{if(!S.unifiedLog){S.projects.filter(p=>p.status==='wishlist').forEach(p=>S.climbs.forEach(c=>{if(c.projectId===p.id)c.projectId=null}));S.unifiedLog=true}reconcileProjects();save()}catch(e){}
 if(S.onboarded){stack=[{name:'home',params:{}}];curTab='home'}else{stack=[{name:'onboarding',params:{}}]}
