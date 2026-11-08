@@ -1377,6 +1377,17 @@ function autoProjects(){
   }
   reconcileProjects();S.autoProjV=true;
 }
+
+/* Demo: keep Projects focused on one active (Midnight Lightning) and one completed (High Plains Drifter). Logs and stats are untouched. */
+function trimDemoProjects(){
+  if(S.demoTrim)return;
+  const keep=p=>p.status==='wishlist'||(p.routeId==='midnight'&&p.status==='active')||(p.routeId==='hpd'&&p.status==='completed');
+  const gone=new Set(S.projects.filter(p=>!keep(p)).map(p=>p.id));
+  S.projects=S.projects.filter(p=>!gone.has(p.id));
+  S.climbs.forEach(c=>{if(gone.has(c.projectId))c.projectId=null});
+  S.activities=S.activities.filter(a=>!gone.has(a.linkedProjectId));
+  reconcileProjects();S.demoTrim=true;
+}
 function reconcileProjects(){const done=[];
   for(const p of S.projects){const cl=S.climbs.filter(c=>c.projectId===p.id).map(c=>({c,s:S.sessions.find(s=>s.id===c.sessionId)})).filter(x=>x.s).sort((a,b)=>a.s.date.localeCompare(b.s.date));
     const prev=p.status;const send=cl.find(x=>SENT.includes(x.c.result));
@@ -1695,7 +1706,7 @@ const ACT={
  pickAvatar:async()=>{const [f]=await pickFiles('file-img');if(!f)return;try{S.me.avatar=await downscale(f,300);save();rerender()}catch(e){toast('That file isn\'t an image we can read')}},
  rmAvatar:()=>{S.me.avatar=null;save();rerender()},
  saveProfile:()=>{save();back();toast('Profile saved')},
- resetDemo:el=>{if(el.dataset.confirm!=='1'){el.dataset.confirm='1';el.textContent='Tap again to erase everything';return}try{localStorage.removeItem(KEY)}catch(e){}S=seed();toF();S.unifiedLog=true;ensureSocial();ensureDemoV2();reconcileProjects();autoProjects();save();ONB={step:0};climbUI={};stack=[{name:'onboarding',params:{}}];render(true)},
+ resetDemo:el=>{if(el.dataset.confirm!=='1'){el.dataset.confirm='1';el.textContent='Tap again to erase everything';return}try{localStorage.removeItem(KEY)}catch(e){}S=seed();toF();S.unifiedLog=true;ensureSocial();ensureDemoV2();reconcileProjects();autoProjects();trimDemoProjects();save();ONB={step:0};climbUI={};stack=[{name:'onboarding',params:{}}];render(true)},
  // feed & people
  kudos:el=>{const id=el.dataset.id;const i=S.kudos.findIndex(k=>k.activityId===id&&k.userId==='me');if(i>=0)S.kudos.splice(i,1);else S.kudos.push({activityId:id,userId:'me'});save();rerender()},
  comments:el=>commentSheet(el.dataset.id),
@@ -1793,7 +1804,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#sheet-root').fi
 /* ---------- boot ---------- */
 try{ensureSocial()}catch(e){console.warn(e)}
 try{ensureDemoV2()}catch(e){console.warn(e)}
-try{autoProjects();save()}catch(e){console.warn(e)}
+try{autoProjects();trimDemoProjects();save()}catch(e){console.warn(e)}
 try{S.routes.forEach(r=>{if(['user-added','ai-identified'].includes(r.verificationStatus))r.name=titleCase(r.name)});(S.customAreas||[]).forEach(a=>{a.name=titleCase(a.name)})}catch(e){}
 try{if(!S.unifiedLog){S.projects.filter(p=>p.status==='wishlist').forEach(p=>S.climbs.forEach(c=>{if(c.projectId===p.id)c.projectId=null}));S.unifiedLog=true}reconcileProjects();save()}catch(e){}
 if(S.onboarded){stack=[{name:'home',params:{}}];curTab='home'}else{stack=[{name:'onboarding',params:{}}]}
