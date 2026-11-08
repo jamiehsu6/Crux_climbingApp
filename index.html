@@ -1266,8 +1266,9 @@ SCREENS.onboarding=()=>{
 };
 
 /* 2. Home — greeting, one action, the feed */
+function projLastDate(p){const ss=projSessions(p);return ss.length?ss[ss.length-1].date:p.dateAdded}
 function currentProject(){const act=S.projects.filter(p=>p.status==='active');if(!act.length)return null;
-  const last=p=>{const ss=projSessions(p);return ss.length?ss[ss.length-1].date:p.dateAdded};return act.sort((a,b)=>last(b).localeCompare(last(a)))[0]}
+  return act.sort((a,b)=>projLastDate(b).localeCompare(projLastDate(a)))[0]}
 SCREENS.home=()=>{
   const acts=S.activities.filter(a=>a.activityType!=='project_start'&&isFriend(a.userId)&&visibleActivity(a)).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0,20);
   const p=currentProject();let mine='';
@@ -1396,7 +1397,8 @@ function deleteSession(sid){S.sessions=S.sessions.filter(s=>s.id!==sid);S.climbs
 /* 5. Projects — view and manage. Active comes from logged attempts; Wishlist can be added any time. */
 let projTab='active';
 SCREENS.projects=()=>{
-  const by=k=>S.projects.filter(p=>p.status===k).sort((a,b)=>(b.dateCompleted||b.dateAdded).localeCompare(a.dateCompleted||a.dateAdded));
+  const key=p=>p.status==='active'?projLastDate(p):(p.dateCompleted||p.dateAdded);
+  const by=k=>S.projects.filter(p=>p.status===k).sort((a,b)=>key(b).localeCompare(key(a)));
   const list=by(projTab);
   const empty={active:['No active projects','Log an attempt and turn on “Save to My Projects” to track it here.'],completed:['No completed projects yet','Projects move here when you send them in a logged session.'],wishlist:['Your wishlist is empty','Save climbs you want to try, from here or from Beta.']}[projTab];
   return{html:`<div class="scroll">
@@ -1780,6 +1782,3 @@ try{if(!S.unifiedLog){S.projects.filter(p=>p.status==='wishlist').forEach(p=>S.c
 if(S.onboarded){stack=[{name:'home',params:{}}];curTab='home'}else{stack=[{name:'onboarding',params:{}}]}
 render(true);
 </script>
-
-</body>
-</html>
