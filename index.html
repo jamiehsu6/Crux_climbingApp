@@ -820,7 +820,7 @@ let stack=[];let curTab='home';
 const TAB_ROOT={home:'home',projects:'projects',scan:'scan',profile:'profile'};
 function go(name,params={},opts={}){if(opts.replace)stack[stack.length-1]={name,params};else stack.push({name,params});render(true)}
 function back(){if(stack.length>1){stack.pop();render(true)}else tab('home')}
-function tab(t){curTab=t;stack=[{name:TAB_ROOT[t],params:{}}];render(true)}
+function tab(t){curTab=t;if(t==='projects')projTab='active';stack=[{name:TAB_ROOT[t],params:{}}];render(true)}
 const cur=()=>stack[stack.length-1];
 const scrollMem={};
 function render(fresh){
